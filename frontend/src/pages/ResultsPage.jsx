@@ -22,16 +22,185 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Button
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SlideshowIcon from '@mui/icons-material/Slideshow';
 import DescriptionIcon from '@mui/icons-material/Description';
-import { Button } from '@mui/material';
 import { surveyAPI } from '../services/api';
 
+// Chart.js
+import { Chart, registerables } from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+Chart.register(...registerables);
+
+const calculateScores = (surveyData) => {
+  if (!surveyData) return { catScores: {}, subcatScores: {} };
+
+  const categories = [
+    {
+      name: "ESTRATÉGICO",
+      questions: [
+        "DIAGNOSTICO_SEL",
+        "POLITICA_GD_SEL",
+        "PGD_SEL",
+        "PINAR_SEL",
+        "SIC_SEL",
+        "PLAN_ANALISIS_SEL",
+        "MATRIZ_RIESGOS_SEL",
+        "ARTICULACION_PE_SEL",
+        "ARTICULACION_MIPG_SEL",
+        "INDICADORES_GESTION_SEL",
+        "INFORMES_GESTION_SEL",
+        "PROGRAMA_AUDITORIA_SEL"
+      ],
+      subcategories: {
+        "PLANEACIÓN DE LA FUNCIÓN ARCHIVÍSTICA": [
+          "DIAGNOSTICO_SEL",
+          "POLITICA_GD_SEL",
+          "PGD_SEL",
+          "PINAR_SEL",
+          "SIC_SEL",
+          "PLAN_ANALISIS_SEL",
+          "MATRIZ_RIESGOS_SEL"
+        ],
+        "PLANEACIÓN ESTRATÉGICA": [
+          "ARTICULACION_PE_SEL",
+          "ARTICULACION_MIPG_SEL"
+        ],
+        "CONTROL, EVALUACIÓN Y SEGUIMIENTO": [
+          "INDICADORES_GESTION_SEL",
+          "INFORMES_GESTION_SEL",
+          "PROGRAMA_AUDITORIA_SEL"
+        ]
+      }
+    },
+    {
+      name: "ADMINISTRACIÓN DE ARCHIVOS",
+      questions: [
+        "PLANEACION_ADMIN_SEL",
+        "INFRAESTRUCTURA_LOCATIVA_SEL",
+        "GESTION_HUMANA_SEL",
+        "CAPACITACION_GD_SEL",
+        "CONDICIONES_TRABAJO_SEL"
+      ],
+      subcategories: {
+        "ADMINISTRACIÓN": ["PLANEACION_ADMIN_SEL"],
+        "RECURSOS FÍSICOS": ["INFRAESTRUCTURA_LOCATIVA_SEL"],
+        "TALENTO HUMANO": ["GESTION_HUMANA_SEL", "CAPACITACION_GD_SEL"],
+        "GESTIÓN EN SEGURIDAD Y SALUD OCUPACIONAL": ["CONDICIONES_TRABAJO_SEL"]
+      }
+    },
+    {
+      name: "PROCESOS DE LA GESTIÓN DOCUMENTAL",
+      subcategories: [
+        {
+          name: "PLANEACION_TECNICA",
+          elements: [
+            "DISENO_CREACION_DOC_SEL",
+            "DOC_ESPECIALES_SEL",
+            "CUADRO_CLASIFICACION_SEL",
+            "TABLAS_RETENCION_SEL",
+            "TABLAS_VALORACION_SEL"
+          ]
+        },
+        {
+          name: "PRODUCCION",
+          elements: ["MEDIOS_TECNICAS_PRODUCCION_SEL", "REPROGRAFIA_SEL"]
+        },
+        { name: "GESTION_TRAMITE", elements: ["REGISTRO_DISTRIBUCION_SEL"] },
+        { name: "ORGANIZACION", elements: ["DESCRIPCION_DOCUMENTAL_SEL"] },
+        { name: "TRANSFERENCIAS", elements: ["PLAN_TRANSFERENCIAS_SEL"] },
+        { name: "DISPOSICION_DOCUMENTOS", elements: ["ELIMINACION_DOCUMENTOS_SEL"] },
+        { name: "PLANEACION_TECNICA_CONSERVACION", elements: ["PLAN_CONSERVACION_SEL", "PLAN_PRESERVACION_DIGITAL_SEL"] },
+        { name: "VALORACION", elements: ["VALORES_PRIMARIOS_SECUNDARIOS_SEL"] }
+      ]
+    },
+    {
+      name: "TECNOLÓGICO",
+      subcategories: [
+        {
+          name: "ARTICULACION_DOC_ELECTRONICOS",
+          elements: ["GESTION_DOC_PROC_SEL", "GESTION_DOC_CANAL_SEL", "SISTEMA_INFO_CORP_SEL"]
+        },
+        {
+          name: "TECNOLOGIAS_DOC_ELECTRONICOS",
+          elements: [
+            "MODELO_REQ_SEL",
+            "SISTEMA_GDEA_SEL",
+            "DIGITALIZACION_SEL",
+            "ESQUEMA_METADATOS_SEL",
+            "SISTEMA_PRESERVACION_SEL",
+            "ALMACENAMIENTO_NUBE_SEL",
+            "REPOSITORIOS_DIGITALES_SEL"
+          ]
+        },
+        { name: "SEGURIDAD_PRIVACIDAD", elements: ["ARTICULACION_POLITICAS_SEG_INFO_SEL", "COPIA_SEGURIDAD_ARCHIVO_DIG_SEL"] },
+        { name: "INTEROPERABILIDAD", elements: ["INTEROPERABILIDAD_POLITICO_LEGAL_SEL", "INTEROPERABILIDAD_SEMANTICO_SEL", "INTEROPERABILIDAD_TECNICO_SEL"] }
+      ]
+    },
+    {
+      name: "CULTURAL",
+      subcategories: [
+        {
+          name: "GESTION_CONOCIMIENTO",
+          elements: ["PROGRAMA_GESTION_CONOCIMIENTO_SEL", "MEMORIA_INSTITUCIONAL_SEL", "ARCHIVOS_HISTORICOS_SEL"]
+        },
+        {
+          name: "REDES_CULTURALES",
+          elements: ["REDES_CULTURALES_SEL", "RENDICION_CUENTAS_SEL", "MECANISMOS_DIFUSION_SEL", "ACCESO_CONSULTA_INFO_SEL"]
+        },
+        {
+          name: "PROTECCION_AMBIENTE",
+          elements: ["PLAN_AMBIENTAL_SEL"]
+        }
+      ]
+    }
+  ];
+
+  const catScores = {};
+  const subcatScores = {};
+
+  categories.forEach(cat => {
+    const values = (cat.questions || [])
+      .map(q => Number(surveyData[q]))
+      .filter(v => !isNaN(v));
+
+    catScores[cat.name] = values.length
+      ? Math.round(values.reduce((a, b) => a + b, 0) / values.length)
+      : 0;
+
+    subcatScores[cat.name] = {};
+    if (cat.subcategories) {
+      if (Array.isArray(cat.subcategories)) {
+        // Para las subcategorías tipo array (Procesos y Comps)
+        cat.subcategories.forEach(sub => {
+          const subValues = (sub.elements || [])
+            .map(q => Number(surveyData[q]))
+            .filter(v => !isNaN(v));
+          subcatScores[cat.name][sub.name] = subValues.length
+            ? Math.round(subValues.reduce((a, b) => a + b, 0) / subValues.length)
+            : 0;
+        });
+      } else {
+        // Para las subcategorías tipo objeto (Estratégico, Admin)
+        Object.entries(cat.subcategories).forEach(([sub, qs]) => {
+          const subValues = qs.map(q => Number(surveyData[q])).filter(v => !isNaN(v));
+          subcatScores[cat.name][sub] = subValues.length
+            ? Math.round(subValues.reduce((a, b) => a + b, 0) / subValues.length)
+            : 0;
+        });
+      }
+    }
+  });
+
+  return { catScores, subcatScores };
+};
+
 function ResultsPage() {
+
   const [surveys, setSurveys] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +208,16 @@ function ResultsPage() {
   const [selectedSurvey, setSelectedSurvey] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
 
+  // ----------------- Funciones de Nivel de Madurez -----------------
+  const getMaturityLevel = (score) => {
+    if (score === 0) return { level: "Inicial", definition: "Entidad carece del producto", ponderation: "0%" };
+    if (score <= 65) return { level: "Básico", definition: "Entidad en desarrollo del producto", ponderation: "<=65%" };
+    if (score <= 79) return { level: "Intermedio", definition: "Entidad implementa el producto", ponderation: "66-79%" };
+    if (score <= 94) return { level: "Avanzado 1", definition: "Desarrollo conforme a lo planeado", ponderation: "80-94%" };
+    return { level: "Avanzado 2", definition: "Mejora continua", ponderation: ">=95%" };
+  };
+
+  // ----------------- Funciones para API -----------------
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -57,9 +236,7 @@ function ResultsPage() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const handleDelete = async (id) => {
     if (window.confirm('¿Está seguro de que desea eliminar esta respuesta?')) {
@@ -74,7 +251,6 @@ function ResultsPage() {
   };
 
   const handleView = (survey) => {
-    console.log('Survey data:', survey);
     setSelectedSurvey(survey);
     setOpenDialog(true);
   };
@@ -84,101 +260,17 @@ function ResultsPage() {
     setSelectedSurvey(null);
   };
 
-  const renderFieldValue = (key, value) => {
-    if (Array.isArray(value)) {
-      return value.join(', ');
-    }
-    if (typeof value === 'boolean') {
-      return value ? 'Sí' : 'No';
-    }
-    if (value === null || value === undefined || value === '') {
-      return '-';
-    }
-    return String(value);
-  };
-
-  const getFieldLabel = (key) => {
-    const labels = {
-      firstName: 'Nombre',
-      lastName: 'Apellido',
-      age: 'Edad',
-      gender: 'Género',
-      email: 'Correo Electrónico',
-      phone: 'Teléfono',
-      address: 'Dirección',
-      city: 'Ciudad',
-      country: 'País',
-      interests: 'Áreas de Interés',
-      contactPreference: 'Preferencia de Contacto',
-      newsletter: 'Boletín Informativo',
-      comments: 'Comentarios',
-      satisfaction: 'Satisfacción'
-    };
-    return labels[key] || key;
-  };
-
-  const handleGeneratePresentation = async () => {
-    try {
-      setLoading(true);
-      const blob = await surveyAPI.generatePresentation();
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Resultados_Formulario_${Date.now()}.pptx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      setLoading(false);
-    } catch (err) {
-      console.error('Error generating presentation:', err);
-      setError('Error al generar la presentación. Por favor, intente nuevamente.');
-      setLoading(false);
-    }
-  };
-
-  const handleGenerateIndividualPresentation = async (survey) => {
-    try {
-      const blob = await surveyAPI.generateIndividualPresentation(survey._id);
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const entityName = survey.surveyData.nombre_entidad || 'Entidad';
-      link.download = `Diagnostico_${entityName.replace(/\s+/g, '_')}_${Date.now()}.pptx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Error generating individual presentation:', err);
-      alert('Error al generar la presentación individual. Por favor, intente nuevamente.');
-    }
-  };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     });
   };
 
   if (loading) {
     return (
       <Container maxWidth="lg">
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '400px',
-          }}
-        >
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
           <CircularProgress />
         </Box>
       </Container>
@@ -187,419 +279,113 @@ function ResultsPage() {
 
   return (
     <Container maxWidth="lg">
-      <Box className="fade-in" sx={{ py: 4 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 4,
-          }}
-        >
-          <Typography variant="h3" component="h1" sx={{ fontWeight: 600 }}>
-            Resultados del Formulario
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<SlideshowIcon />}
-              onClick={handleGeneratePresentation}
-              disabled={loading || surveys.length === 0}
-            >
-              Generar Presentación
-            </Button>
-            <Tooltip title="Actualizar">
-              <IconButton onClick={fetchData} color="primary">
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
+      <Box sx={{ py: 4 }}>
+        <Typography variant="h3" component="h1" sx={{ fontWeight: 600, mb: 3 }}>
+          Resultados del Formulario
+        </Typography>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
+        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
-        {/* Estadísticas */}
-        {stats && (
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
-                    Total de Respuestas
-                  </Typography>
-                  <Typography variant="h4" component="div">
-                    {stats.total}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
-                    Completadas
-                  </Typography>
-                  <Typography variant="h4" component="div" color="success.main">
-                    {stats.completed}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
-                    Borradores
-                  </Typography>
-                  <Typography variant="h4" component="div" color="warning.main">
-                    {stats.draft}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
-                    Tasa de Completado
-                  </Typography>
-                  <Typography variant="h4" component="div" color="primary.main">
-                    {stats.completionRate}%
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )}
-
-        {/* Tabla de Resultados */}
-        <TableContainer component={Paper} elevation={3}>
+        {/* Tabla de resultados */}
+        <TableContainer component={Paper} elevation={3} sx={{ mb: 4 }}>
           <Table>
             <TableHead>
               <TableRow sx={{ backgroundColor: 'primary.main' }}>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>
-                  ID
-                </TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>
-                  Estado
-                </TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>
-                  Fecha de Creación
-                </TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>
-                  Fecha de Completado
-                </TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }} align="right">
-                  Acciones
-                </TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>ID</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Estado</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Fecha de Creación</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Fecha de Completado</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }} align="right">Acciones</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {surveys.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    <Typography variant="body1" color="text.secondary" sx={{ py: 4 }}>
-                      No hay resultados disponibles
-                    </Typography>
+                  <TableCell colSpan={5} align="center">No hay resultados disponibles</TableCell>
+                </TableRow>
+              ) : surveys.map(survey => (
+                <TableRow key={survey._id}>
+                  <TableCell>{survey._id.substring(0, 8)}...</TableCell>
+                  <TableCell>
+                    <Chip label={survey.status} color={survey.status === 'completed' ? 'success' : 'warning'} size="small" />
+                  </TableCell>
+                  <TableCell>{formatDate(survey.createdAt)}</TableCell>
+                  <TableCell>{survey.completedAt ? formatDate(survey.completedAt) : '-'}</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Ver detalles">
+                      <IconButton size="small" onClick={() => handleView(survey)} color="primary"><VisibilityIcon /></IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" onClick={() => handleDelete(survey._id)} color="error"><DeleteIcon /></IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
-              ) : (
-                surveys.map((survey) => (
-                  <TableRow
-                    key={survey._id}
-                    sx={{
-                      '&:hover': { backgroundColor: 'action.hover' },
-                    }}
-                  >
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                        {survey._id.substring(0, 8)}...
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={survey.status}
-                        color={survey.status === 'completed' ? 'success' : 'warning'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{formatDate(survey.createdAt)}</TableCell>
-                    <TableCell>
-                      {survey.completedAt
-                        ? formatDate(survey.completedAt)
-                        : '-'}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Ver detalles">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleView(survey)}
-                          color="primary"
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Generar Presentación">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleGenerateIndividualPresentation(survey)}
-                          color="secondary"
-                        >
-                          <DescriptionIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Eliminar">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDelete(survey._id)}
-                          color="error"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
         </TableContainer>
 
-        {/* Dialog para ver detalles completos */}
-        <Dialog 
-          open={openDialog} 
-          onClose={handleCloseDialog}
-          maxWidth="md"
-          fullWidth
-        >
+        {/* Dialog para detalles y gráficos */}
+        <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="lg" fullWidth>
           <DialogTitle>
-            <Typography variant="h5" component="div" sx={{ fontWeight: 600 }}>
-              Detalles de la Respuesta
-            </Typography>
-            {selectedSurvey && (
-              <Typography variant="caption" color="text.secondary">
-                ID: {selectedSurvey._id}
-              </Typography>
-            )}
+            Detalles de la Respuesta
+            {selectedSurvey && <Typography variant="caption" color="text.secondary">ID: {selectedSurvey._id}</Typography>}
           </DialogTitle>
           <DialogContent dividers>
             {selectedSurvey && (
               <Box>
-                {/* Información de la Entidad */}
-                <Typography variant="h6" sx={{ mb: 2, color: 'primary.main', fontWeight: 600 }}>
-                  Información de la Entidad
-                </Typography>
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  {[
-                    { key: 'nombre_entidad', label: 'Nombre de la Entidad' },
-                    { key: 'nivel', label: 'Nivel' },
-                    { key: 'sector', label: 'Sector' },
-                    { key: 'caracter', label: 'Carácter' },
-                    { key: 'categoria', label: 'Categoría' },
-                    { key: 'organismo', label: 'Organismo' },
-                    { key: 'rama', label: 'Rama' },
-                    { key: 'municipio', label: 'Municipio' },
-                    { key: 'departamento', label: 'Departamento' },
-                    { key: 'direccion', label: 'Dirección' },
-                    { key: 'telefono', label: 'Teléfono' },
-                    { key: 'fax', label: 'Fax' },
-                    { key: 'correo', label: 'Correo Electrónico' },
-                    { key: 'web', label: 'Sitio Web' },
-                    { key: 'fecha_creacion', label: 'Fecha de Creación' },
-                    { key: 'acto_legal', label: 'Acto Legal de Creación' },
-                    { key: 'numero_dependencias', label: 'Número de Dependencias' },
-                    { key: 'tiene_sucursales', label: '¿Tiene Sucursales?' }
-                  ].map(({ key, label }) => (
-                    selectedSurvey.surveyData[key] !== undefined && selectedSurvey.surveyData[key] !== '' && (
-                      <Grid item xs={12} sm={6} key={key}>
-                        <Paper elevation={1} sx={{ p: 2 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            {label}
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                            {renderFieldValue(key, selectedSurvey.surveyData[key])}
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    )
-                  ))}
-                </Grid>
+                {/* Niveles de madurez */}
+                <Typography variant="h5" sx={{ mb: 2 }}>Niveles de Madurez</Typography>
 
-                {/* Representante Legal */}
-                <Typography variant="h6" sx={{ mb: 2, color: 'primary.main', fontWeight: 600 }}>
-                  Representante Legal
-                </Typography>
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  {[
-                    { key: 'rep_nombre', label: 'Nombre' },
-                    { key: 'rep_cargo', label: 'Cargo' },
-                    { key: 'rep_profesion', label: 'Profesión' }
-                  ].map(({ key, label }) => (
-                    selectedSurvey.surveyData[key] !== undefined && selectedSurvey.surveyData[key] !== '' && (
-                      <Grid item xs={12} sm={6} key={key}>
-                        <Paper elevation={1} sx={{ p: 2 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            {label}
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                            {renderFieldValue(key, selectedSurvey.surveyData[key])}
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    )
-                  ))}
-                </Grid>
+                {(() => {
+                  const { catScores, subcatScores } = calculateScores(selectedSurvey.surveyData);
+                  const generalScore = Math.round(Object.values(catScores).reduce((a, b) => a + b, 0) / Object.values(catScores).length);
 
-                {/* Diligenciador */}
-                <Typography variant="h6" sx={{ mb: 2, color: 'primary.main', fontWeight: 600 }}>
-                  Diligenciador
-                </Typography>
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  {[
-                    { key: 'dil_nombre', label: 'Nombre' },
-                    { key: 'dil_tiempo', label: 'Tiempo en el Cargo' }
-                  ].map(({ key, label }) => (
-                    selectedSurvey.surveyData[key] !== undefined && selectedSurvey.surveyData[key] !== '' && (
-                      <Grid item xs={12} sm={6} key={key}>
-                        <Paper elevation={1} sx={{ p: 2 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            {label}
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                            {renderFieldValue(key, selectedSurvey.surveyData[key])}
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    )
-                  ))}
-                </Grid>
+                  return (
+                    <Box>
+                      {/* Nivel general */}
+                      <Typography variant="h6" sx={{ mb: 1 }}>Nivel General: {getMaturityLevel(generalScore).level} ({generalScore}%)</Typography>
 
-                {/* Aspectos Administrativos */}
-                {Object.keys(selectedSurvey.surveyData).some(k => k.startsWith('1_') || k.startsWith('2_') || k.startsWith('3_') || k.startsWith('4_')) && (
-                  <>
-                    <Typography variant="h6" sx={{ mb: 2, color: 'primary.main', fontWeight: 600 }}>
-                      I. Aspectos Administrativos
-                    </Typography>
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
-                      {Object.keys(selectedSurvey.surveyData)
-                        .filter(key => (key.startsWith('1_') || key.startsWith('2_') || key.startsWith('3_') || key.startsWith('4_')) && 
-                                      !key.includes('_detail') && !key.includes('_obs') && !key.includes('_info'))
-                        .sort()
-                        .map(key => (
-                          <Grid item xs={12} sm={6} md={4} key={key}>
-                            <Paper elevation={1} sx={{ p: 2, bgcolor: selectedSurvey.surveyData[key] === 'Cumple' ? '#e8f5e9' : selectedSurvey.surveyData[key] === 'Parcial' ? '#fff3e0' : '#ffebee' }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                {key}
-                              </Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>
-                                {selectedSurvey.surveyData[key]}
-                              </Typography>
-                              {selectedSurvey.surveyData[`${key}_detail`] && (
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                                  Detalle: {selectedSurvey.surveyData[`${key}_detail`]}
-                                </Typography>
-                              )}
-                              {selectedSurvey.surveyData[`${key}_info`] && (
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                                  Info: {selectedSurvey.surveyData[`${key}_info`]}
-                                </Typography>
-                              )}
-                            </Paper>
-                          </Grid>
-                        ))}
-                    </Grid>
-                  </>
-                )}
+                      {/* Nivel por categoría */}
+                      <Typography variant="subtitle1">Por Categoría:</Typography>
+                      {Object.entries(catScores).map(([cat, score]) => {
+                        const lvl = getMaturityLevel(score);
+                        return <Typography key={cat}>{cat}: {lvl.level} ({score}%) - {lvl.definition}</Typography>;
+                      })}
 
-                {/* Función Archivística */}
-                {Object.keys(selectedSurvey.surveyData).some(k => k.startsWith('5_') || k.startsWith('6_') || k.startsWith('7_')) && (
-                  <>
-                    <Typography variant="h6" sx={{ mb: 2, color: 'primary.main', fontWeight: 600 }}>
-                      II. Aspectos de Función Archivística
-                    </Typography>
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
-                      {Object.keys(selectedSurvey.surveyData)
-                        .filter(key => (key.startsWith('5_') || key.startsWith('6_') || key.startsWith('7_')) && 
-                                      !key.includes('_detail') && !key.includes('_obs') && !key.includes('_info'))
-                        .sort()
-                        .map(key => (
-                          <Grid item xs={12} sm={6} md={4} key={key}>
-                            <Paper elevation={1} sx={{ p: 2, bgcolor: selectedSurvey.surveyData[key] === 'Cumple' ? '#e8f5e9' : selectedSurvey.surveyData[key] === 'Parcial' ? '#fff3e0' : '#ffebee' }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                {key}
-                              </Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>
-                                {selectedSurvey.surveyData[key]}
-                              </Typography>
-                              {selectedSurvey.surveyData[`${key}_detail`] && (
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                                  Detalle: {selectedSurvey.surveyData[`${key}_detail`]}
-                                </Typography>
-                              )}
-                            </Paper>
-                          </Grid>
-                        ))}
-                    </Grid>
-                  </>
-                )}
+                      {/* Gráfica por categoría */}
+                      <Box sx={{ mt: 3, mb: 4 }}>
+                        <Bar
+                          data={{
+                            labels: Object.keys(catScores),
+                            datasets: [{ label: "Nivel por Categoría", data: Object.values(catScores), backgroundColor: "rgba(75,192,192,0.6)" }]
+                          }}
+                          options={{ responsive: true, plugins: { legend: { display: false } } }}
+                        />
+                      </Box>
 
-                {/* Preservación */}
-                {Object.keys(selectedSurvey.surveyData).some(k => k.startsWith('8_')) && (
-                  <>
-                    <Typography variant="h6" sx={{ mb: 2, color: 'primary.main', fontWeight: 600 }}>
-                      III. Aspectos de Preservación
-                    </Typography>
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
-                      {Object.keys(selectedSurvey.surveyData)
-                        .filter(key => key.startsWith('8_') && !key.includes('_detail') && !key.includes('_obs') && !key.includes('_info'))
-                        .sort()
-                        .map(key => (
-                          <Grid item xs={12} sm={6} md={4} key={key}>
-                            <Paper elevation={1} sx={{ p: 2, bgcolor: selectedSurvey.surveyData[key] === 'Cumple' ? '#e8f5e9' : selectedSurvey.surveyData[key] === 'Parcial' ? '#fff3e0' : '#ffebee' }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                {key}
-                              </Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>
-                                {selectedSurvey.surveyData[key]}
-                              </Typography>
-                              {selectedSurvey.surveyData[`${key}_detail`] && (
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                                  Detalle: {selectedSurvey.surveyData[`${key}_detail`]}
-                                </Typography>
-                              )}
-                            </Paper>
-                          </Grid>
-                        ))}
-                    </Grid>
-                  </>
-                )}
-
-                {/* Metadata */}
-                <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Fecha de creación: {formatDate(selectedSurvey.createdAt)}
-                  </Typography>
-                  {selectedSurvey.completedAt && (
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Fecha de completado: {formatDate(selectedSurvey.completedAt)}
-                    </Typography>
-                  )}
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Estado: {selectedSurvey.status}
-                  </Typography>
-                </Box>
+                      {/* Gráfica por subcategoría */}
+                      <Typography variant="subtitle1" sx={{ mt: 2 }}>Por Subcategoría:</Typography>
+                      {Object.entries(subcatScores).map(([cat, subs]) => (
+                        <Box key={cat} sx={{ mt: 2, mb: 3 }}>
+                          <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>{cat}</Typography>
+                          <Bar
+                            data={{
+                              labels: Object.keys(subs),
+                              datasets: [{ label: "Nivel Subcategoría", data: Object.values(subs), backgroundColor: "rgba(153,102,255,0.6)" }]
+                            }}
+                            options={{ responsive: true, plugins: { legend: { display: false } } }}
+                          />
+                        </Box>
+                      ))}
+                    </Box>
+                  );
+                })()}
               </Box>
             )}
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseDialog} color="primary">
-              Cerrar
-            </Button>
+            <Button onClick={handleCloseDialog} color="primary">Cerrar</Button>
           </DialogActions>
         </Dialog>
       </Box>
